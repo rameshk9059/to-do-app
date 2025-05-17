@@ -1,67 +1,55 @@
 pipeline {
     agent any
-   
-    environment{
-        SCANNER_HOME= tool 'sonar-scanner'
+    environment {
+        SCANNER_HOME = tool 'Sonar-Scanner'
     }
-
     stages {
-        stage('git-checkout') {
+        stage('SCM') {
             steps {
-                git branch: 'main', changelog: false, poll: false, url: 'https://github.com/jaiswaladi246/to-do-app.git'
+                git branch: 'main', url: 'https://github.com/rameshk9059/to-do-app.git'
             }
         }
 
-    stage('Sonar Analysis') {
+        stage('Sonarqube-Analysis') {
             steps {
-                   sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.url=URL_OF_SONARQUBE -Dsonar.login=TOKEN_OF_SONARQUBE -Dsonar.projectName=to-do-app \
-                   -Dsonar.sources=. \
-                   -Dsonar.projectKey=to-do-app '''
-               }
-            }
+                withCredentials([string(credentialsId: 'sonar-cred-new', variable: 'SONAR_LOGIN')]) {
+                    sh '''
            
-		stage('OWASP Dependency Check') {
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.url=http://192.168.203.132:9000/ \
+                        -Dsonar.login=$SONAR_LOGIN \
+                        -Dsonar.projectName=todo \
+                        -Dsonar.sources=. \
+                        -Dsonar.projectKey=todo
+                    '''
+                }
+            }
+        }
+        
+        stage('OWASP Dependency Check') {
             steps {
-               dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'DP'
+               dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'owasp'
                     dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
             }
         }
-     
 
-         stage('Docker Build') {
+        stage('Docker build via ansible') {
             steps {
-               script{
-                   withDockerRegistry(credentialsId: '9ea0c4b0-721f-4219-be62-48a976dbeec0') {
-                    sh "docker build -t  todoapp:latest -f docker/Dockerfile . "
-                    sh "docker tag todoapp:latest username/todoapp:latest "
-                 }
-               }
-            }
-        }
+                withCredentials([string(credentialsId: 'sudo_pass', variable: 'SUDO'), usernamePassword(credentialsId: 'docker_hub_cred', passwordVariable: 'DOCKERHUB_PASSWORD', usernameVariable: 'DOCKERHUB_USERNAME')]) {
 
-        stage('Docker Push') {
-            steps {
-               script{
-                   withDockerRegistry(credentialsId: '9ea0c4b0-721f-4219-be62-48a976dbeec0') {
-                    sh "docker push  username/todoapp:latest "
+                 sh '''
+                 export ANSIBLE_HOST_KEY_CHECKING=False
+                  ansible-playbook -i /etc/ansible/hosts /etc/ansible/deployment.yml \
+                        -e dockerhub_username=$DOCKERHUB_USERNAME \
+                        -e dockerhub_password=$DOCKERHUB_PASSWORD \
+                        -e ansible_become_pass=${SUDO}
+
+                 '''
                  }
-               }
             }
-        }
-        stage('trivy') {
-            steps {
-               sh " trivy username/todoapp:latest"
+
             }
-        }
-		stage('Deploy to Docker') {
-            steps {
-               script{
-                   withDockerRegistry(credentialsId: '9ea0c4b0-721f-4219-be62-48a976dbeec0') {
-                    sh "docker run -d --name to-do-app -p 4000:4000 username/todoapp:latest "
-                 }
-               }
-            }
-        }
+        
 
     }
 }
