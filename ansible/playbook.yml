@@ -1,37 +1,49 @@
 ---
--  hosts: all
-   become: true
-   vars:
-      docker_image_name: rameshk9059/to-do-app
-      docker_image_tag: latest
-   tasks:
+- name: Build and push the docker image
+  hosts: all
+  become: true
+  vars:
+    repo_url: https://github.com/rameshk9059/to-do-app.git
+    image_name: rameshk9059/todo:latest
+  tasks:
+    - name: ensure git installed
+      apt:
+        name: git
+        state: latest
+        update_cache: yes
 
-      - name: copy the code from jenkins to docker server
-        synchronize:
-           src: ../
-           dest: /opt/to-do-app
-           recursive: yes
+    - name: Clone the repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: /tmp/to-do-app
+        force: yes
 
+    - name: Docker build
+      command: docker build -t {{ image_name }} .
+      args:
+        chdir: /tmp/to-do-app/backend
 
-      - name: Log in to Docker Hub
-        docker_login:
-           username: "{{ lookup('env', 'DOCKER_USERNAME') }}"
-           password: "{{ lookup('env', 'DOCKER_PASSWORD') }}"
+    - name: Login to Docker Hub
+      shell: echo "{{ dockerhub_password }}" | docker login -u "{{ dockerhub_username
+        }}" --password-stdin
+      no_log: true
 
-      - name: Build the docker image
-        docker_image:
-            name: "{{ docker_image_name }}"
-            tag: "{{ docker_image_tag }}"
+    - name: Push the Docker image
+      command: docker push {{ image_name }}
 
-            build:
-              path: /opt/to-do-app/backend
+    - name: Docker build
+      command: docker build -t {{ image_name }} .
+      args:
+        chdir: /tmp/to-do-app/backend
 
-      - name: Run Docker container
-        docker_container:
-         name: to-do-container
-         image: "{{ docker_image_name }}:{{ docker_image_tag }}"
-         state: started
-         restart_policy: always
-         ports:
-            - "80:4000"
-               
+    - name: Create directory for Trivy report
+      file:
+        path: /tmp/trivy_scan
+        state: directory
+        mode: '0755'
+
+    - name: Scan the image with trivy
+      command: trivy image -f json -o /tmp/trivy_scan/report.json {{ image_name }}
+
+    - name: Docker container creation
+      command: docker run -dit -p 4000:4000 --name todo-app {{ image_name }}
