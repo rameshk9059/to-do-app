@@ -31,10 +31,7 @@
     - name: Push the Docker image
       command: docker push {{ image_name }}
 
-    - name: Docker build
-      command: docker build -t {{ image_name }} .
-      args:
-        chdir: /tmp/to-do-app/backend
+
 
     - name: Create directory for Trivy report
       file:
