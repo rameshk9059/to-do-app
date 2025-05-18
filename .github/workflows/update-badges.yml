@@ -14,8 +14,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Generate and update badges
+      - name: Parse Badges.md and update README.md badges
         run: |
+          # Function to pick badge color by value
           get_color() {
             val=$1
             if [ "$val" -lt 50 ]; then
@@ -29,9 +30,9 @@ jobs:
             fi
           }
 
-          # Parse Badges.md and extract section + accuracies
+          # Parse Badges.md to extract sections and values
           awk '
-          BEGIN { section="" }
+          BEGIN { section=""; }
           /^Input:/ {
             section = $2;
             getline; video = $2;
@@ -43,6 +44,9 @@ jobs:
             print section, video, audio;
           }' Badges.md > parsed.txt
 
+          # Backup README.md before modifying
+          cp README.md README.md.bak
+
           while read section video audio; do
             video_color=$(get_color $video)
             audio_color=$(get_color $audio)
@@ -52,17 +56,24 @@ jobs:
 
             marker=$(echo "$section" | tr '[:lower:]' '[:upper:]')
 
-            # Update badges in README.md between markers
+            echo "Updating badges for section: $section"
+
+            # Show current badge block before update
+            echo "Before update:"
+            sed -n "/<!-- BADGES_${marker}_START -->/,/<!-- BADGES_${marker}_END -->/p" README.md
+
+            # Replace badges between markers
             awk -v head="<!-- BADGES_${marker}_START -->" \
                 -v tail="<!-- BADGES_${marker}_END -->" \
                 -v badge="${video_badge} ${audio_badge}" '
-              BEGIN { print_flag = 1 }
-              $0 == head { print_flag = 0; print $0; print badge; next }
-              $0 == tail { print_flag = 1 }
-              print_flag { print $0 }
-              $0 == tail { print $0 }
-            ' README.md > tmp && mv tmp README.md
+              $0 == head { print; print badge; inblock=1; next }
+              $0 == tail { inblock=0; print; next }
+              !inblock { print }
+            ' README.md > README.tmp && mv README.tmp README.md
 
+            # Show badge block after update
+            echo "After update:"
+            sed -n "/<!-- BADGES_${marker}_START -->/,/<!-- BADGES_${marker}_END -->/p" README.md
           done < parsed.txt
 
       - name: Commit and push changes
@@ -70,5 +81,10 @@ jobs:
           git config user.name "ramesh-github-actions"
           git config user.email "github-actions@github.com"
           git add README.md
-          git diff --quiet || git commit -m "[skip ci] Update badges from Badges.md"
-          git push
+          # Commit only if changes exist
+          if ! git diff --cached --quiet; then
+            git commit -m "[skip ci] Update badges from Badges.md"
+            git push
+          else
+            echo "No changes detected, skipping commit."
+          fi
