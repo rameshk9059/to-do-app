@@ -1,8 +1,8 @@
 Input: Academic_original
-Video_accuracy = 90%  
-Audio_accuracy = 20%
+Video_accuracy = 100%  
+Audio_accuracy = 100%
 
 
 Input: Academic_Video_original
-Video_accuracy = 10%  
-Audio_accuracy = 70%
+Video_accuracy = 100%  
+Audio_accuracy = 90%
