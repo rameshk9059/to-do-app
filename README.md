@@ -12,4 +12,7 @@
 <!-- BADGES_ACADEMIC_VIDEO_ORIGINAL_END -->
 
 
+
+[![Update Badges in README](https://github.com/rameshk9059/to-do-app/actions/workflows/update-badges.yml/badge.svg)](https://github.com/rameshk9059/to-do-app/actions/workflows/update-badges.yml)
+
 ## This is the Sample React based TO-DO Application 
