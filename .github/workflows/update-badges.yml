@@ -81,10 +81,16 @@ jobs:
           git config user.name "ramesh-github-actions"
           git config user.email "github-actions@github.com"
           git add README.md
-          # Commit only if changes exist
+
           if ! git diff --cached --quiet; then
             git commit -m "[skip ci] Update badges from Badges.md"
-            git push
+            
+            # Pull remote changes and rebase to avoid conflicts
+            git pull --rebase origin main
+
+            # Push after rebase
+            git push origin main
           else
             echo "No changes detected, skipping commit."
           fi
+
