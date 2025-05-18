@@ -1,2 +1,2 @@
-Video_accuracy = 90% \n
+Video_accuracy = 90%  
 Audio_accuracy = 20%
