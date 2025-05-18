@@ -1,0 +1,74 @@
+name: Update Badges in README
+
+on:
+  push:
+    paths:
+      - Badges.md
+  workflow_dispatch:
+
+jobs:
+  update-badges:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Generate and update badges
+        run: |
+          get_color() {
+            val=$1
+            if [ "$val" -lt 50 ]; then
+              echo "red"
+            elif [ "$val" -lt 75 ]; then
+              echo "yellow"
+            elif [ "$val" -lt 90 ]; then
+              echo "blue"
+            else
+              echo "brightgreen"
+            fi
+          }
+
+          # Parse Badges.md and extract section + accuracies
+          awk '
+          BEGIN { section="" }
+          /^Input:/ {
+            section = $2;
+            getline; video = $2;
+            getline; audio = $2;
+
+            gsub("%", "", video);
+            gsub("%", "", audio);
+
+            print section, video, audio;
+          }' Badges.md > parsed.txt
+
+          while read section video audio; do
+            video_color=$(get_color $video)
+            audio_color=$(get_color $audio)
+
+            video_badge="![Video Accuracy](https://img.shields.io/badge/Video_Accuracy-${video}%%25-${video_color})"
+            audio_badge="![Audio Accuracy](https://img.shields.io/badge/Audio_Accuracy-${audio}%%25-${audio_color})"
+
+            marker=$(echo "$section" | tr '[:lower:]' '[:upper:]')
+
+            # Update badges in README.md between markers
+            awk -v head="<!-- BADGES_${marker}_START -->" \
+                -v tail="<!-- BADGES_${marker}_END -->" \
+                -v badge="${video_badge} ${audio_badge}" '
+              BEGIN { print_flag = 1 }
+              $0 == head { print_flag = 0; print $0; print badge; next }
+              $0 == tail { print_flag = 1 }
+              print_flag { print $0 }
+              $0 == tail { print $0 }
+            ' README.md > tmp && mv tmp README.md
+
+          done < parsed.txt
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "ramesh-github-actions"
+          git config user.email "github-actions@github.com"
+          git add README.md
+          git diff --quiet || git commit -m "[skip ci] Update badges from Badges.md"
+          git push
