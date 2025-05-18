@@ -1,4 +1,4 @@
-name: Update Badges
+name: Badges
 
 on:
   push:
